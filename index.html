@@ -1,257 +1,231 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ivy Streams</title>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>Ivy Streams</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
 
-  <!-- Agora & AI -->
-  <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body {
+            background: #0F2027;
+            background: -webkit-linear-gradient(to right, #2C5364, #203A43, #0F2027);
+            background: linear-gradient(to right, #2C5364, #203A43, #0F2027);
+        }
 
-  <!-- Icons -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+        #join-btn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            margin-top: -50px;
+            margin-left: -100px;
+            font-size: 18px;
+            padding: 20px 40px;
+        }
 
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #0d1117;
-      color: white;
-    }
+        #video-streams {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            height: 90vh;
+            width: 1400px;
+            margin: 0 auto;
+        }
 
-    header {
-      padding: 1rem;
-      text-align: center;
-      background-color: #161b22;
-      font-size: 1.5rem;
-      font-weight: bold;
-    }
+        .video-container {
+            max-height: 100%;
+            border: 2px solid black;
+            background-color: #203A49;
+            position: relative;
+        }
 
-    #video-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 12px;
-      padding: 16px;
-    }
+        .video-player {
+            height: 100%;
+            width: 100%;
+        }
 
-    .video-box {
-      position: relative;
-      background-color: black;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-    }
+        .prediction-box {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
 
-    video {
-      width: 100%;
-      height: auto;
-      object-fit: cover;
-    }
+        button {
+            border: none;
+            background-color: cadetblue;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 2px;
+            cursor: pointer;
+        }
 
-    .prediction-box, .username {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.6);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 14px;
-      pointer-events: none;
-    }
+        #stream-controls {
+            display: none;
+            justify-content: center;
+            margin-top: 0.5em;
+        }
 
-    .prediction-box {
-      bottom: 8px;
-    }
-
-    .username {
-      top: 8px;
-    }
-
-    #controls {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      padding: 1rem;
-      background-color: #161b22;
-    }
-
-    .control-btn {
-      background: #238636;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 6px;
-      font-size: 1rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .control-btn:hover {
-      background: #2ea043;
-    }
-
-    .danger {
-      background: #da3633;
-    }
-
-    .danger:hover {
-      background: #f85149;
-    }
-  </style>
+        @media screen and (max-width: 1400px) {
+            #video-streams {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                width: 95%;
+            }
+        }
+    </style>
 </head>
 <body>
 
-  <header>Ivy Streams — Gesture Video Call</header>
+    <button id="join-btn">Join Stream</button>
 
-  <div id="video-container"></div>
+    <div id="stream-wrapper">
+        <div id="video-streams"></div>
 
-  <div id="controls">
-    <button class="control-btn" onclick="joinCall()"><i class="fas fa-sign-in-alt"></i> Join</button>
-    <button class="control-btn" onclick="toggleMic()"><i class="fas fa-microphone" id="mic-icon"></i> Mic</button>
-    <button class="control-btn" onclick="toggleVideo()"><i class="fas fa-video" id="video-icon"></i> Video</button>
-    <button class="control-btn danger" onclick="leaveCall()"><i class="fas fa-sign-out-alt"></i> Leave</button>
-  </div>
+        <div id="stream-controls">
+            <button id="leave-btn">Leave Stream</button>
+            <button id="mic-btn">Mic On</button>
+            <button id="camera-btn">Camera On</button>
+        </div>
+    </div>
 
-  <script>
-    const APP_ID = "0f3fde8ae17c4048bcfc8d69286bc851";
-    const CHANNEL_NAME = "test";
-    const TOKEN = null;
+    <!-- Agora & MediaPipe + TF.js Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/agora-rtc-sdk-ng/AgoraRTC_N.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-    let client, localVideoTrack, localAudioTrack;
-    let model, labels;
-    let camera;
-    const confidenceThreshold = 0.7;
-    let isMicOn = true;
-    let isVideoOn = true;
+    <script>
+        const APP_ID = "0f3fde8ae17c4048bcfc8d69286bc851"; // Replace with your Agora App ID
+        const CHANNEL = "test";
+        const TOKEN = null;
 
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7
-    });
+        let client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        let localTracks = [];
+        let localUid = null;
+        let micMuted = false;
+        let camMuted = false;
 
-    hands.onResults((results) => {
-      if (!model) return;
+        document.getElementById("join-btn").addEventListener("click", async () => {
+            localUid = await client.join(APP_ID, CHANNEL, TOKEN, null);
+            localTracks[0] = await AgoraRTC.createMicrophoneAudioTrack();
+            localTracks[1] = await AgoraRTC.createCameraVideoTrack();
 
-      const predictionBox = document.getElementById('prediction-box');
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        const flat = landmarks.flatMap(pt => [pt.x, pt.y, pt.z]);
+            let player = `<div class="video-container" id="user-container-${localUid}">
+                <video class="video-player" autoplay playsinline id="user-${localUid}"></video>
+            </div>`;
+            document.getElementById("video-streams").insertAdjacentHTML("beforeend", player);
+            localTracks[1].play(`user-${localUid}`);
 
-        const padded = flat.length < 188 ? flat.concat(new Array(188 - flat.length).fill(0)) : flat;
-        const input = tf.tensor2d([padded]);
-        const prediction = model.predict(input).dataSync();
-        const maxIndex = prediction.indexOf(Math.max(...prediction));
-        const confidence = prediction[maxIndex];
-        predictionBox.innerText = confidence > confidenceThreshold ? `Sign: ${labels[maxIndex]}` : "Uncertain";
-        tf.dispose(input);
-      } else {
-        predictionBox.innerText = "No Hand Detected";
-      }
-    });
+            await client.publish(localTracks);
+            document.getElementById("join-btn").style.display = "none";
+            document.getElementById("stream-controls").style.display = "flex";
 
-    async function loadModel() {
-      model = await tf.loadLayersModel("model_js/model.json");
-      labels = await (await fetch("model_js/labels.json")).json();
-    }
+            startGestureRecognition(document.getElementById(`user-${localUid}`));
+        });
 
-    async function joinCall() {
-      await loadModel();
-      client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-      await client.join(APP_ID, CHANNEL_NAME, TOKEN || null);
+        document.getElementById("leave-btn").addEventListener("click", async () => {
+            for (track of localTracks) {
+                track.stop();
+                track.close();
+            }
+            await client.leave();
+            document.getElementById("video-streams").innerHTML = "";
+            document.getElementById("stream-controls").style.display = "none";
+            document.getElementById("join-btn").style.display = "block";
+        });
 
-      localVideoTrack = await AgoraRTC.createCameraVideoTrack();
-      localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        document.getElementById("mic-btn").addEventListener("click", () => {
+            micMuted = !micMuted;
+            localTracks[0].setEnabled(!micMuted);
+            document.getElementById("mic-btn").innerText = micMuted ? "Mic Off" : "Mic On";
+        });
 
-      addUserStream("local-user", localVideoTrack, "You");
-      await client.publish([localVideoTrack, localAudioTrack]);
+        document.getElementById("camera-btn").addEventListener("click", () => {
+            camMuted = !camMuted;
+            localTracks[1].setEnabled(!camMuted);
+            document.getElementById("camera-btn").innerText = camMuted ? "Camera Off" : "Camera On";
+        });
 
-      client.on("user-published", async (user, mediaType) => {
-        await client.subscribe(user, mediaType);
-        if (mediaType === "video") {
-          addUserStream(user.uid, user.videoTrack);
+        client.on("user-published", async (user, mediaType) => {
+            await client.subscribe(user, mediaType);
+
+            if (mediaType === "video") {
+                const remotePlayer = `<div class="video-container" id="user-container-${user.uid}">
+                    <video class="video-player" autoplay playsinline id="user-${user.uid}"></video>
+                </div>`;
+                document.getElementById("video-streams").insertAdjacentHTML("beforeend", remotePlayer);
+                user.videoTrack.play(`user-${user.uid}`);
+            }
+
+            if (mediaType === "audio") {
+                user.audioTrack.play();
+            }
+        });
+
+        client.on("user-unpublished", (user) => {
+            document.getElementById(`user-container-${user.uid}`).remove();
+        });
+
+        // ========== Gesture Model ==========
+        let model, labels, camera;
+        const confidenceThreshold = 0.7;
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        async function loadModel() {
+            model = await tf.loadLayersModel("model_js/model.json");
+            labels = await (await fetch("model_js/labels.json")).json();
+            console.log("Gesture model loaded.");
         }
-        if (mediaType === "audio") {
-          user.audioTrack.play();
+
+        async function startGestureRecognition(videoElement) {
+            await loadModel();
+
+            const predictionBox = document.createElement("div");
+            predictionBox.className = "prediction-box";
+            predictionBox.innerText = "Detecting...";
+            videoElement.parentElement.appendChild(predictionBox);
+
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start();
+
+            hands.onResults((results) => {
+                if (results.multiHandLandmarks?.length) {
+                    const flat = results.multiHandLandmarks[0].flatMap(pt => [pt.x, pt.y, pt.z]);
+                    const padded = flat.concat(new Array(188 - flat.length).fill(0));
+                    const input = tf.tensor2d([padded]);
+                    const prediction = model.predict(input).dataSync();
+                    const maxIndex = prediction.indexOf(Math.max(...prediction));
+                    const confidence = prediction[maxIndex];
+
+                    predictionBox.innerText = confidence > confidenceThreshold
+                        ? `Sign: ${labels[maxIndex]}`
+                        : "Uncertain";
+                    tf.dispose(input);
+                } else {
+                    predictionBox.innerText = "No hand detected";
+                }
+            });
         }
-      });
-
-      client.on("user-unpublished", (user) => {
-        removeUserStream(user.uid);
-      });
-    }
-
-    function addUserStream(id, track, name = "Participant") {
-      const container = document.createElement("div");
-      container.className = "video-box";
-      container.id = `user-${id}`;
-
-      const video = document.createElement("video");
-      video.autoplay = true;
-      container.appendChild(video);
-      track.play(video);
-
-      const username = document.createElement("div");
-      username.className = "username";
-      username.innerText = name;
-      container.appendChild(username);
-
-      if (id === "local-user") {
-        const predictionBox = document.createElement("div");
-        predictionBox.className = "prediction-box";
-        predictionBox.id = "prediction-box";
-        predictionBox.innerText = "Loading AI...";
-        container.appendChild(predictionBox);
-        startGestureDetection(video);
-      }
-
-      document.getElementById("video-container").appendChild(container);
-    }
-
-    function removeUserStream(id) {
-      const container = document.getElementById(`user-${id}`);
-      if (container) container.remove();
-    }
-
-    function leaveCall() {
-      if (localVideoTrack) localVideoTrack.stop();
-      if (localAudioTrack) localAudioTrack.stop();
-      if (camera) camera.stop();
-      client.leave();
-      document.getElementById("video-container").innerHTML = "";
-    }
-
-    function toggleMic() {
-      if (!localAudioTrack) return;
-      isMicOn = !isMicOn;
-      localAudioTrack.setEnabled(isMicOn);
-      document.getElementById("mic-icon").className = isMicOn ? "fas fa-microphone" : "fas fa-microphone-slash";
-    }
-
-    function toggleVideo() {
-      if (!localVideoTrack) return;
-      isVideoOn = !isVideoOn;
-      localVideoTrack.setEnabled(isVideoOn);
-      document.getElementById("video-icon").className = isVideoOn ? "fas fa-video" : "fas fa-video-slash";
-    }
-
-    function startGestureDetection(videoElement) {
-      camera = new Camera(videoElement, {
-        onFrame: async () => await hands.send({ image: videoElement }),
-        width: 640,
-        height: 480
-      });
-      camera.start();
-    }
-  </script>
+    </script>
 </body>
 </html>
